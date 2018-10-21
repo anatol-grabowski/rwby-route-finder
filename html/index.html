@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="ol.css" type="text/css">
+    <style>
+.map {
+	height: 400px;
+	width: 600px;
+}
+.map .d3-layer path {
+	vector-effect: non-scaling-stroke;
+}
+
+.map .d3-layer path.thread {
+	stroke: black;
+	stroke-width: 2;
+	fill: none;
+}
+.map .d3-layer path.thread:hover {
+	stroke: blue;
+	stroke-width: 4;
+}
+.map .d3-layer path.route {
+	stroke: red;
+	stroke-width: 5;
+	fill: none;
+}
+.map .d3-layer circle.node {
+	fill: red;
+	r: 0.2px;
+}
+.map .d3-layer circle.node:hover {
+	fill: blue;
+	r: 0.25px;
+}
+.map .d3-layer g.suggest circle.node {
+	fill: red;
+	r: 0.9px;
+}
+select.suggest {
+	width: 600px;
+	height: 100px;
+}
+    </style>
+    <script src="ol-debug.js" type="text/javascript"></script>
+    <script src="d3.v4.js" type="text/javascript"></script>
+    <script src="TreeModel.js" type="text/javascript"></script>
+    <script src="nodes.utf16.js" type="text/javascript"></script>
+    <script src="threads.utf16.js" type="text/javascript"></script>
+    <script src="init_ol_d3.js" type="text/javascript"></script>
+  </head>
+  <body>
+    <div id="map" class="map"></div>
+	<label>from (lmb):</label><input type="text" class="from autocomplete"></input>
+	<label>to (rmb):</label><input type="text" class="to autocomplete"></input>
+	<input type="button" class="route" value="Build routes"></input>
+	<br><select multiple class="suggest"></select>
+    <script type="text/javascript">
+var osm_layer	= new ol.layer.Tile({ source: new ol.source.OSM() })
+var map_view	= new ol.View({ center: ol.proj.fromLonLat([27.34, 53.74]), zoom: 6 })
+var map			= new ol.Map({ target: 'map' })
+map.setView(map_view)
+map.addLayer(osm_layer)
+
+var s
+map.once('precompose', function() {
+	s = init_ol_d3(this)
+	draw()
+})
+
+d3.selectAll('input.autocomplete').on('keyup', (d, i, el)=>{
+	let suggest = []
+	d3.select('#map .d3-layer svg > g g.suggest').remove()
+	d3.select('select.suggest').text('')
+	if (el[i].value == '') return
+
+	let re = new RegExp(el[i].value, 'i')
+	nodes.forEach((n)=>{ if (re.test(n.value)) suggest.push(n) })
+	d3.select('select.suggest')
+		.selectAll('option')
+		.data(suggest).enter()
+		.append('option')
+		.text((n)=>{return n.value + ' ['+n.exp+']'})
+		.on('click', (n)=>{
+			el[i].value = n.value
+			el[i].__data__ = n  //there should be another way
+			d3.select('#map .d3-layer svg > g g.suggest').remove()
+			/*d3.select('#map .d3-layer svg > g')
+				.append('g').classed('from', true)
+				.selectAll("circle")
+				.data(suggest).enter()
+				.append("circle").classed("node", true)
+				.attr("cx", function (d) { return s([d.lon, d.lat])[0] })
+				.attr("cy", function (d) { return s([d.lon, d.lat])[1] })
+				.on('click', (d)=>{console.log(d)})*/
+		})
+	d3.select('#map .d3-layer svg > g')
+		.append('g').classed('suggest', true)
+    	.selectAll("circle")
+		.data(suggest).enter()
+		.append("circle").classed("node", true)
+		.attr("cx", function (d) { return s([d.lon, d.lat])[0] })
+		.attr("cy", function (d) { return s([d.lon, d.lat])[1] })
+		.on('click', (d)=>{console.log(d)})
+})
+
+//смолевичи --> красное знамя????
+d3.select('input[type=button].route').on('click', ()=>{
+	let from = d3.select('input.from').datum()
+	let to = d3.select('input.to').datum()
+	console.log(from.exp, '-->', to.exp)
+	let routes = buildRoutes(from, to)
+	console.log(routes.length)
+	var g = d3.select('#map .d3-layer svg > g')
+	g.select('g.routes').remove()
+	let g_routes = g.append('g').classed('routes', true)
+	routes.forEach((ro)=>{
+		g_routes.append('path').classed('route', true)
+			  .datum(ro)
+			  .attr('d', drawStops)
+			  .on('click', (d)=>{console.log(d)})
+	})
+})
+//=============================== DATA ===================================
+var l = [ [27.55000, 53.91667], [30.03333, 52.90000] ]
+nodes = nodes.filter((el)=>{
+	return (el.exp.substr(0, 2) == '21') 
+		//&& (el.otd == '001') 
+		//&& /Минская обл./.test(el.label_tail)
+})
+nodes.forEach((el)=>{
+	if (el.exp.substr(0, 2) != '21') return
+	if ((el.lat < 40) && (el.lon > 40)) {
+		let temp_lat = el.lat
+		el.lat = el.lon
+		el.lon = temp_lat
+	}
+})
+
+threads = threads.filter((th)=>{ return th.thread })
+//threads = [threads[0], threads[39]]
+threads.forEach((th)=>{						//four connections: T<->S<->N
+	th.stops.forEach((th_s)=>{				//stops are in threads (T ->S   N)
+		let n_found = nodes.find((n_find)=>{
+			if (!( (th_s.exp && (th_s.exp==n_find.exp))
+				|| ((th_s.ecp==n_find.ecp) && (n_find.exp.substr(2)!='00000')) )) return
+			if (!n_find.stops) n_find.stops = []
+			n_find.stops.push(th_s)			//add stop to node (T   N ->S)
+			return true
+		})
+		if (n_found) th_s.node = n_found	//add node to stop (T   S<- N)
+		th_s.thread = th					//add thread to stop (T<- S   N)
+	})
+})
+console.log('data ok')
+//=============================== DRAW ===================================
+var drawRoute = d3.line()
+	.x(function(lonlat) { return s(lonlat)[0] })
+	.y(function(lonlat) { return s(lonlat)[1] })
+
+var drawStops = d3.line()
+	.x(function(st) { return s([st.node.lon, st.node.lat])[0] })
+	.y(function(st) { return s([st.node.lon, st.node.lat])[1] })
+	.defined(function(st) { return st.node })	//add interpolation for missing points
+
+function draw() {
+	var g = d3.select('#map .d3-layer svg > g')
+	//path = g.append('path')
+		  //.classed('route', true)
+		  //.attr('d', drawRoute(l))
+	let g_threads = g.append('g').classed('threads', true)
+	threads.forEach((th)=>{
+		g_threads.append('path').classed('thread', true)
+			  .datum(th.stops)
+			  .attr('d', drawStops)
+			  .on('click', (d)=>{console.log(d)})
+	})
+
+    g.append('g').classed('nodes', true).selectAll("circle")
+		.data(nodes).enter()
+		.append("circle").classed("node", true)
+		.attr("cx", function (d) { return s([d.lon, d.lat])[0] })
+		.attr("cy", function (d) { return s([d.lon, d.lat])[1] })
+		.on('click', (n)=>{
+			d3.select('input.from').property('value', n.value).datum(n)
+		})
+		.on('contextmenu', (n)=>{
+			d3.event.preventDefault()
+			d3.select('input.to').property('value', n.value).datum(n)
+		})
+}
+
+//============================== ROUTE ===================================
+function buildRoutes(from, to) {
+	let routes = []
+	let tree = new TreeModel()
+	let root = tree.parse({})
+	let max_stations = 6
+	let max_transfers = 1
+	from.stops.forEach((st)=>{
+		let ch = root.addChild(tree.parse({}))
+		ch.stop = st
+		ch.transfers = 0
+	})
+	root.walk((tn)=>{
+		if (tn.isRoot()) return
+		let stop = tn.stop
+		if (stop.node == to) //route found
+			return routes.push(tn.getPath().slice(1).map((el)=>el.stop))
+		if (tn.getPath().slice(1).length >= max_stations) return
+		let next = stop.thread.stops[stop.thread.stops.indexOf(stop)+1]
+		if (next && (next!=stop) && !tn.getPath().find((anc)=>{ return anc.stop == next })){
+			let ch = tn.addChild(tree.parse({}))	//add next stop on this thread
+			ch.stop = next
+			ch.transfers = ch.parent.transfers
+		}
+
+		if (tn.transfers >= max_transfers) return
+		if (tn.parent.isRoot()) return		//don't add transfers for top stops
+		stop.node.stops.forEach((st)=>{		//add stops on other threads (transfers)
+			if ( (st!=stop) && !tn.getPath().find((anc)=>{ return anc.stop == st }) ) {
+				let ch = tn.addChild(tree.parse({}))
+				ch.stop = st
+				ch.transfers = ch.parent.transfers +1
+			}
+		})
+	})
+	return routes
+}
+    </script>
+  </body>
+</html>

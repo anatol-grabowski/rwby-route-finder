@@ -1,0 +1,21 @@
+{
+  "name": "rw.by",
+  "version": "1.0.0",
+  "description": "",
+  "main": "rw.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "http-server ./html -p $PORT",
+    "local": "http-server ./html -p 8080"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^0.20.0",
+    "desktop-screenshot": "^0.1.1",
+    "express": "^4.13.3",
+    "http-server": "^0.11.1",
+    "multer": "^1.1.0",
+    "request": "^2.72.0"
+  }
+}

@@ -1,0 +1,18 @@
+All trains from the station on specific date (everyday doesn't work):
+http://rasp.rw.by/ru/station/?station=%D0%9C%D0%B8%D0%BD%D1%81%D0%BA-%D0%9F%D0%B0%D1%81%D1%81%D0%B0%D0%B6%D0%B8%D1%80%D1%81%D0%BA%D0%B8%D0%B9&date=2017-03-26
+
+Specific train/thread:
+http://rasp.rw.by/ru/train/?train=050%D0%B1&date=everyday
+
+http://rasp.rw.by/ru/train/?thread=6801_0_9613989_g17_4&date=today&from=%D0%9F%D0%BE%D0%BC%D1%8B%D1%81%D0%BB%D0%B8%D1%89%D0%B5
+
+Route:
+http://rasp.rw.by/ru/route/?from=%D0%9C%D0%B8%D0%BD%D1%81%D0%BA&to=%D0%96%D0%BE%D0%B4%D0%B8%D0%BD%D0%BE-%D0%AE%D0%B6%D0%BD%D0%BE%D0%B5&date=everyday
+
+Autocomplete station names:
+http://rasp.rw.by/ru/ajax/autocomplete/search/?term=%D0%9C%D0%B8%D0%BD&limit=0&timestamp=1490349914353
+
+Geo getroute??:
+http://geo.rasp.rw.by/getroute.php
+
+

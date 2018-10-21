@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="ol.css" type="text/css">
+    <style>
+.map {
+	height: 400px;
+	width: 600px;
+}
+.map .d3-layer path {
+	vector-effect: non-scaling-stroke;
+}
+
+.map .d3-layer path.route {
+	stroke: black;
+	stroke-width: 2;
+	fill: none;
+}
+.map .d3-layer path.route:hover {
+	stroke: blue;
+	stroke-width: 4;
+}
+.map .d3-layer circle.city {
+	fill: red;
+	r: 0.2px;
+}
+.map .d3-layer circle.city:hover {
+	fill: blue;
+	r: 0.25px;
+}
+    </style>
+    <script src="ol-debug.js" type="text/javascript"></script>
+    <script src="d3.v4.js" type="text/javascript"></script>
+    <script src="nodes.utf16.js" type="text/javascript"></script>
+    <script src="threads.utf16.js" type="text/javascript"></script>
+    <script src="init_ol_d3.js" type="text/javascript"></script>
+  </head>
+  <body>
+    <div id="map" class="map"></div>
+    <script type="text/javascript">
+var osm_layer	= new ol.layer.Tile({ source: new ol.source.OSM() })
+var map_view	= new ol.View({ center: ol.proj.fromLonLat([27.34, 53.74]), zoom: 6 })
+var map			= new ol.Map({ target: 'map' })
+map.setView(map_view)
+map.addLayer(osm_layer)
+
+var s
+map.once('precompose', function() {
+	s = init_ol_d3(this)
+	draw()
+})
+
+//=============================== DATA ===================================
+var l = [ [27.55000, 53.91667], [30.03333, 52.90000] ]
+nodes = nodes.filter((el)=>{
+	return (el.exp.substr(0, 2) == '21') 
+		//&& (el.otd == '001') 
+		//&& /Минская обл./.test(el.label_tail)
+})
+nodes.forEach((el)=>{
+	if (el.exp.substr(0, 2) != '21') return
+	if ((el.lat < 40) && (el.lon > 40)) {
+		let temp_lat = el.lat
+		el.lat = el.lon
+		el.lon = temp_lat
+	}
+})
+
+threads = threads.filter((th)=>{ return th.thread })
+threads = [threads[0], threads[39]]
+threads.forEach((th)=>{
+	th.nodes.forEach((th_n)=>{
+		let n_found = nodes.find((n_find)=>{
+			if (th_n.exp) return th_n.exp == n_find.exp
+			if (th_n.ecp == n_find.ecp) return n_find.exp.substr(2) != '00000'
+		})
+		if (n_found) th_n.node = n_found
+	})
+})
+console.log('data ok')
+//=============================== DRAW ===================================
+var drawRoute = d3.line()
+	.x(function(lonlat) { return s(lonlat)[0] })
+	.y(function(lonlat) { return s(lonlat)[1] })
+
+var drawThread = d3.line()
+	.x(function(n) { return s([n.node.lon, n.node.lat])[0] })
+	.y(function(n) { return s([n.node.lon, n.node.lat])[1] })
+	//.defined(function(n) { return n.node })
+
+function draw() {
+	var g = d3.select('#map .d3-layer svg > g')
+	//path = g.append('path')
+		  //.classed('route', true)
+		  //.attr('d', drawRoute(l))
+	threads.forEach((th)=>{
+		path = g.append('path').classed('route', true)
+			  .datum(th.nodes)
+			  .attr('d', drawThread)
+			  .on('click', (d)=>{console.log(d)})
+	})
+
+    g.selectAll("circle")
+		.data(nodes).enter()
+		.append("circle").classed("city", true)
+		.attr("cx", function (d) { 
+			return s([d.lon, d.lat])[0]
+		})
+		.attr("cy", function (d) { 
+			return s([d.lon, d.lat])[1]
+		})
+		.on('click', (d)=>{console.log(d)})
+}
+    </script>
+  </body>
+</html>
